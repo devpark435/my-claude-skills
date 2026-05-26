@@ -4,7 +4,7 @@
 # 수정: FEATURE_NAME, steps 섹션만 바꾸면 됨
 
 UDID=$(xcrun simctl list devices | grep Booted | grep -oE '[A-F0-9-]{36}' | head -1)
-BUNDLE="com.devpark.lottoSaju"
+BUNDLE="com.example.yourapp"   # ← iOS Bundle ID로 변경 (Runner/Info.plist > CFBundleIdentifier)
 FEATURE_NAME="input_flow"   # ← 기능 이름 변경
 SS="$HOME/tmp/qa/${FEATURE_NAME}_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$SS"

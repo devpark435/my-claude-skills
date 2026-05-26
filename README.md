@@ -8,7 +8,6 @@ Claude Code 커스텀 스킬 모음. 카테고리별로 구성됨.
 |----------|------|---------|
 | [flutter/](flutter/) | Flutter 앱 개발 전용 스킬 | 8 |
 | [marketing/](marketing/) | 마케팅 도구 연동 스킬 | 1 |
-| [design/](design/) | 디자인 툴 연동 스킬 | 1 |
 
 ## 전체 스킬 목록
 
@@ -30,12 +29,6 @@ Claude Code 커스텀 스킬 모음. 카테고리별로 구성됨.
 | 스킬 이름 | 트리거 상황 |
 |-----------|-------------|
 | `meta-ads-setup` | Meta Ads MCP 초기 연동 세팅 |
-
-### Design
-
-| 스킬 이름 | 트리거 상황 |
-|-----------|-------------|
-| `pharpay-figma` | flutter_pharpay 프로젝트에서 Figma → Flutter 위젯 변환 |
 
 ## 스킬 사용법
 

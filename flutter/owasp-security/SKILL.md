@@ -10,7 +10,7 @@ description: Use when performing security audits, vulnerability assessments, or 
 ## 스크립트 경로
 
 ```bash
-SCRIPTS="$HOME/Desktop/claude_skills/flutter-owasp-security/scripts"
+SCRIPTS=$(find "$HOME" -path "*/flutter/owasp-security/scripts" -type d 2>/dev/null | head -1)
 ```
 
 ---
@@ -20,7 +20,7 @@ SCRIPTS="$HOME/Desktop/claude_skills/flutter-owasp-security/scripts"
 프로젝트 루트에서 실행:
 
 ```bash
-SCRIPTS="$HOME/Desktop/claude_skills/flutter-owasp-security/scripts"
+SCRIPTS=$(find "$HOME" -path "*/flutter/owasp-security/scripts" -type d 2>/dev/null | head -1)
 python3 "$SCRIPTS/scan_hardcoded_secrets.py" .
 python3 "$SCRIPTS/check_dependencies.py" .
 python3 "$SCRIPTS/check_network_security.py" .

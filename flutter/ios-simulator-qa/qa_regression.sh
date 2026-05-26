@@ -2,10 +2,10 @@
 # ─────────────────────────────────────────
 # 프로젝트별 설정 — 여기만 수정
 # ─────────────────────────────────────────
-BUNDLE="com.devpark.lottoSaju"
-TAB_IDS=("tab_홈" "tab_운세" "tab_히스토리" "tab_설정")
-CTA_LABEL="기운 다시 뽑기"
-INPUT_FAB_ID=""   # 없음 — 좌표로 탭 (화면 중앙 탭바)
+BUNDLE="com.example.yourapp"   # ← iOS Bundle ID로 변경 (Runner/Info.plist > CFBundleIdentifier)
+TAB_IDS=("tab_home" "tab_second" "tab_third" "tab_settings")   # ← 앱 탭 AXUniqueId로 변경
+CTA_LABEL="버튼 레이블"   # ← 메인 CTA 버튼 텍스트로 변경
+INPUT_FAB_ID=""   # ← FAB AXUniqueId (없으면 빈 문자열)
 # ─────────────────────────────────────────
 
 UDID=$(xcrun simctl list devices | grep Booted | grep -oE '[A-F0-9-]{36}' | head -1)

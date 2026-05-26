@@ -5,7 +5,7 @@ description: Use when starting a new Flutter project from scratch — scaffolds 
 
 # Flutter Project Bootstrap
 
-회사 표준 Flutter 프로젝트 초기 세팅. 실행 순서대로 따를 것.
+Flutter 프로젝트 초기 세팅. 실행 순서대로 따를 것.
 
 ## 표준 스택
 
