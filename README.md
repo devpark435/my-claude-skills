@@ -7,6 +7,7 @@ Claude Code 커스텀 스킬 모음. 카테고리별로 구성됨.
 | 카테고리 | 설명 | 스킬 수 |
 |----------|------|---------|
 | [flutter/](flutter/) | Flutter 앱 개발 전용 스킬 | 8 |
+| [react/](react/) | React 앱 개발 전용 스킬 | 1 |
 | [marketing/](marketing/) | 마케팅 도구 연동 스킬 | 1 |
 
 ## 전체 스킬 목록
@@ -23,6 +24,12 @@ Claude Code 커스텀 스킬 모음. 카테고리별로 구성됨.
 | `flutter-ios-simulator-qa` | iOS 시뮬레이터 QA 자동화 스크립트 생성/실행 |
 | `flutter-owasp-security` | 보안 감사, OWASP Mobile Top 10 취약점 검사 |
 | `flutter-figma-mcp` | Figma URL → Flutter 위젯 변환 |
+
+### React
+
+| 스킬 이름 | 트리거 상황 |
+|-----------|-------------|
+| `react-project-bootstrap` | 새 React 프로젝트 초기 세팅 시작할 때 (Vite + TS + Zustand + TanStack) |
 
 ### Marketing
 
