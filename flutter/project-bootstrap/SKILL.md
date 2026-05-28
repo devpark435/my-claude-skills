@@ -91,7 +91,7 @@ riverpod 3.x 생태계 전환기. 다음 충돌이 자주 발생:
 ## Step 3 — 폴더 구조 생성
 
 ```bash
-mkdir -p lib/core/{constant,provider,router,util,component}
+mkdir -p lib/core/{constant,provider,router,util,component,layout,exception,config,enum}
 mkdir -p lib/domain/{model,repository,usecase}
 mkdir -p lib/data/{repository_impl,remote,local}
 mkdir -p lib/presentation
@@ -105,11 +105,15 @@ find lib test -type d -empty -exec touch {}/.gitkeep \;
 ```
 lib/
   core/
-    constant/       # AppColor, AppTextStyles, AppSizes 등
+    constant/       # AppColor, AppTextStyles, AppInsets, AppRadius 등 토큰
     provider/       # Dio, SharedPrefs 등 글로벌 provider
     router/         # GoRouter 설정
-    util/           # 유틸 함수
+    util/           # 유틸 함수 (validators, format_utils, toast, dialog, logger)
     component/      # 공용 위젯
+    layout/         # DefaultLayout 등 Scaffold 래퍼
+    exception/      # RequestException 등 도메인 에러 타입
+    config/         # env_config, custom_scroll_behavior (웹), http_override
+    enum/           # AppRouter, UserType 등 전역 enum
   domain/
     model/          # freezed 데이터 모델
     repository/     # abstract 인터페이스
@@ -246,6 +250,355 @@ class AppTextStyles {
   // 프로젝트 텍스트 토큰 추가
 }
 ```
+
+### `lib/core/constant/app_insets.dart`
+
+`DefaultLayout` 의 하단 플로팅 영역에서 사용하는 `context.safeBottomInset` extension. iPhone 홈 인디케이터 있는 기기에선 safe area 사용, 없는 기기에선 최소 여백 보장.
+
+```dart
+import 'package:flutter/material.dart';
+
+class AppInsets {
+  AppInsets._();
+  static const double minBottom = 16.0;
+}
+
+extension SafeBottomInset on BuildContext {
+  /// padding: EdgeInsets.only(bottom: context.safeBottomInset)
+  double get safeBottomInset {
+    final bottom = MediaQuery.viewPaddingOf(this).bottom;
+    return bottom > 0 ? bottom : AppInsets.minBottom;
+  }
+}
+```
+
+### `lib/core/layout/default_layout.dart`
+
+표준 Scaffold 래퍼. AppBar(뒤로/X/액션)/하단 플로팅 버튼/로딩 dimmer 통합.
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../constant/app_color.dart';
+import '../constant/app_insets.dart';
+
+/// 기본 레이아웃을 지정한다.
+class DefaultLayout extends ConsumerStatefulWidget {
+  final Widget child;
+  final Color? backgroundColor;
+
+  /// 앱바 표시 여부 (default: false)
+  final bool showAppBar;
+
+  /// 하단 SafeArea 적용 여부 (default: true)
+  final bool showBottomSafeArea;
+
+  /// 뒤로가기 버튼 표시 여부
+  final bool showBack;
+
+  /// X 표시 여부 + 컬러 + 클릭 콜백
+  final bool showClose;
+  final Color closeBtnColor;
+  final VoidCallback? onClosePressed;
+
+  /// 앱바 타이틀
+  final String title;
+  final Widget? titleWidget;
+
+  /// Bottom navigation bar
+  final Widget? bottomNavigationBar;
+
+  /// body 패딩 (default: vertical 17.8, horizontal 16)
+  final EdgeInsetsGeometry? padding;
+
+  /// 앱바 actions (오른쪽 영역)
+  final List<Widget> actions;
+
+  /// 앱바 하단 1px divider 표시
+  final bool showBottomDivider;
+
+  /// 뒤로가기 추가 동작
+  final VoidCallback? onBackPressed;
+
+  /// AppBar bottom 위젯 (PreferredSize)
+  final PreferredSizeWidget? bottomWidget;
+
+  final Widget? flexibleSpace;
+  final double actionsRightPadding;
+  final double appBarHeight;
+  final double? titleSpacing;
+  final bool? centerTitle;
+
+  final Widget? floatingActionButton;
+  final FloatingActionButtonLocation floatingActionButtonLocation;
+
+  /// 하단 플로팅 위젯 (버튼/가격 패널 등)
+  final Widget? bottomFloating;
+
+  /// 하단 플로팅 텍스트 (간편 버튼 자동 생성)
+  final String? bottomFloatingText;
+  final VoidCallback? onBottomFloatingPressed;
+
+  /// 로딩 dimmer
+  final bool isLoading;
+
+  /// 키보드 올라올 때 body 리사이즈 (default: false)
+  final bool resizeToAvoidBottomInset;
+
+  const DefaultLayout({
+    required this.child,
+    this.showBottomSafeArea = true,
+    this.backgroundColor,
+    this.showAppBar = false,
+    this.showBack = false,
+    this.showClose = false,
+    this.closeBtnColor = Colors.black,
+    this.onClosePressed,
+    this.title = '',
+    this.titleWidget,
+    this.bottomNavigationBar,
+    this.padding,
+    this.actions = const [],
+    this.showBottomDivider = false,
+    this.onBackPressed,
+    this.bottomWidget,
+    this.flexibleSpace,
+    this.actionsRightPadding = 16,
+    this.appBarHeight = 52.0,
+    this.titleSpacing,
+    this.centerTitle,
+    this.floatingActionButton,
+    this.floatingActionButtonLocation = FloatingActionButtonLocation.endFloat,
+    this.bottomFloating,
+    this.bottomFloatingText,
+    this.onBottomFloatingPressed,
+    this.isLoading = false,
+    this.resizeToAvoidBottomInset = false,
+    super.key,
+  });
+
+  @override
+  ConsumerState<DefaultLayout> createState() => _DefaultLayoutState();
+}
+
+class _DefaultLayoutState extends ConsumerState<DefaultLayout> {
+  @override
+  Widget build(BuildContext context) {
+    final hasAppBar = widget.showAppBar;
+
+    if (!hasAppBar &&
+        (widget.showBack ||
+            widget.showClose ||
+            widget.title.isNotEmpty ||
+            widget.actions.isNotEmpty ||
+            widget.titleWidget != null)) {
+      throw Exception(
+        'showAppBar 비활성 상태에서 showBack/title/showClose/actions 사용 불가',
+      );
+    }
+
+    if (widget.title.isNotEmpty && widget.titleWidget != null) {
+      throw Exception('title 과 titleWidget 동시 사용 불가');
+    }
+
+    if (widget.showBottomDivider && widget.bottomWidget != null) {
+      throw Exception('showBottomDivider 과 bottomWidget 동시 사용 불가');
+    }
+
+    return GestureDetector(
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      child: Stack(
+        children: [
+          Scaffold(
+            appBar: hasAppBar
+                ? PreferredSize(
+                    preferredSize: Size.fromHeight(widget.appBarHeight),
+                    child: _renderAppBar(context),
+                  )
+                : null,
+            backgroundColor: widget.backgroundColor ?? Colors.white,
+            body: SafeArea(
+              bottom: widget.showBottomSafeArea,
+              child: Padding(
+                padding: widget.padding ??
+                    const EdgeInsets.symmetric(
+                      vertical: 17.8,
+                      horizontal: 16.0,
+                    ),
+                child: widget.child,
+              ),
+            ),
+            bottomNavigationBar: _hasBottomFloating
+                ? _resolveFloatingButton()
+                : widget.bottomNavigationBar,
+            floatingActionButton:
+                _hasBottomFloating ? null : widget.floatingActionButton,
+            floatingActionButtonLocation: widget.floatingActionButtonLocation,
+            resizeToAvoidBottomInset: widget.resizeToAvoidBottomInset,
+          ),
+          if (widget.isLoading)
+            Container(
+              width: double.infinity,
+              height: MediaQuery.sizeOf(context).height,
+              color: Colors.black.withValues(alpha: 0.3),
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+        ],
+      ),
+    );
+  }
+
+  bool get _hasBottomFloating =>
+      widget.bottomFloatingText != null || widget.bottomFloating != null;
+
+  Widget? _resolveFloatingButton() {
+    if (widget.bottomFloatingText != null) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(24, 0, 24, context.safeBottomInset),
+        child: SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton(
+            onPressed: widget.onBottomFloatingPressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColor.primary,
+              disabledBackgroundColor: AppColor.primary.withValues(alpha: 0.4),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 0,
+            ),
+            child: Text(
+              widget.bottomFloatingText!,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (widget.bottomFloating != null) {
+      return Padding(
+        padding: EdgeInsets.fromLTRB(24, 0, 24, context.safeBottomInset),
+        child: widget.bottomFloating!,
+      );
+    }
+
+    return widget.floatingActionButton;
+  }
+
+  AppBar _renderAppBar(BuildContext context) {
+    return AppBar(
+      automaticallyImplyLeading: widget.showBack,
+      backgroundColor: widget.backgroundColor ?? Colors.white,
+      centerTitle: widget.centerTitle ?? true,
+      elevation: 0.0,
+      toolbarHeight: widget.appBarHeight,
+      flexibleSpace: widget.flexibleSpace,
+      actions: widget.showClose
+          ? [
+              IconButton(
+                onPressed: () {
+                  if (widget.onClosePressed != null) {
+                    widget.onClosePressed!();
+                  } else {
+                    context.pop();
+                  }
+                },
+                icon: Icon(
+                  Icons.close,
+                  size: 20,
+                  color: widget.closeBtnColor,
+                ),
+              ),
+              const SizedBox(width: 16.0),
+            ]
+          : [
+              ...widget.actions,
+              SizedBox(width: widget.actionsRightPadding),
+            ],
+      leading: widget.showBack
+          ? Transform.translate(
+              offset: const Offset(4.0, 0),
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back_ios, color: Colors.black),
+                onPressed: widget.onBackPressed ??
+                    () {
+                      if (!context.canPop()) {
+                        throw Exception('뒤로갈 수 있는 페이지가 존재하지 않습니다.');
+                      }
+                      context.pop();
+                    },
+              ),
+            )
+          : null,
+      title: widget.titleWidget ??
+          Text(
+            widget.title,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF0C151F),
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+      titleSpacing: widget.titleSpacing ?? 24.0,
+      bottom: widget.bottomWidget ??
+          (widget.showBottomDivider
+              ? const PreferredSize(
+                  preferredSize: Size.fromHeight(8.0),
+                  child: Divider(
+                    color: Color(0xFFEEEEEE),
+                    thickness: 1.0,
+                    height: 0.0,
+                  ),
+                )
+              : null),
+    );
+  }
+}
+```
+
+#### 사용 예시
+
+```dart
+DefaultLayout(
+  showAppBar: true,
+  showBack: true,
+  title: '설정',
+  bottomFloatingText: '저장',
+  onBottomFloatingPressed: () { /* ... */ },
+  isLoading: ref.watch(loadingProvider),
+  child: const SettingsBody(),
+)
+```
+
+> 컬러/타이포 토큰은 프로젝트 디자인 시스템 잡힌 뒤 `AppColor.primary`, hardcoded TextStyle 등을 토큰으로 치환할 것.
+
+### `lib/core/util/` 권장 헬퍼
+
+신규 프로젝트마다 자주 쓰는 헬퍼들. 한 번에 만들어두면 편함.
+
+| 파일 | 의존성 | 내용 |
+|------|--------|------|
+| `validators.dart` | 없음 | 필수/길이/이메일/전화번호 검증 (`Validators.required`, `Validators.email` 등) |
+| `format_utils.dart` | 없음 | 가격 콤마, 날짜 'M월 D일 (요일)' 포맷 |
+| `phone_formatter.dart` | 없음 | 010-1234-5678 자동 포맷 + `TextInputFormatter` |
+| `app_logger.dart` | `logger` 패키지 | `AppLogger.d/i/w/e` 래퍼 (PrettyPrinter 설정) |
+| `toast_utils.dart` | `fluttertoast` 패키지 | `ToastUtils.showToast(context, toastText: ...)` |
+
+설치:
+```bash
+flutter pub add logger fluttertoast
+```
+
+이 헬퍼들은 도메인 무관. 회사 표준 톤만 유지하고 그대로 복사해 사용. 다이얼로그/시트 같은 위젯 의존 헬퍼는 디자인 시스템 잡힌 뒤 작성.
 
 ---
 
