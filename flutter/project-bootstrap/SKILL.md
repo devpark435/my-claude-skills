@@ -22,11 +22,23 @@ Flutter 프로젝트 초기 세팅. 실행 순서대로 따를 것.
 
 ## Step 1 — Flutter 프로젝트 생성
 
+### 옵션 A — 글로벌 flutter 사용
 ```bash
-flutter create <project_name> --org <bundle_prefix>
-# 예: flutter create howlpot --org com.company
+flutter create <project_name> --org <bundle_prefix> --platforms=<platforms>
+# 예 (모바일+웹): flutter create my_app --org com.company --platforms=web,ios,android
 cd <project_name>
 ```
+
+### 옵션 B — fvm로 Flutter 버전 고정 (권장)
+```bash
+mkdir <project_name> && cd <project_name>
+fvm use <version> --force          # 예: fvm use 3.41.5 --force
+fvm flutter create . --org <bundle_prefix> --platforms=<platforms>
+```
+
+이후 모든 명령은 `fvm flutter ...` / `fvm dart ...` 로 실행. `.fvmrc` 가 자동 생성됨.
+
+**`--platforms` 값**: `web,ios,android,macos,linux,windows` 중 필요한 것만 콤마 구분. 생략 시 전부 생성.
 
 ---
 
@@ -54,6 +66,26 @@ flutter pub add --dev \
   riverpod_lint
 ```
 
+> fvm 사용 시 `flutter pub add` → `fvm flutter pub add`
+
+### ⚠️ 알려진 버전 충돌 (2026-05 기준)
+
+riverpod 3.x 생태계 전환기. 다음 충돌이 자주 발생:
+
+1. **`riverpod_lint` / `custom_lint` 호환 부재**
+   - `flutter_riverpod ^3.x` + `freezed_annotation ^3.x` + `riverpod_lint` 동시 설치 시 충돌.
+   - **해결**: lint 두 개를 일단 제외하고 진행. 호환 버전 나오면 추가.
+   - 또는 riverpod 2.6.1 생태계로 다운그레이드 (`flutter_riverpod:^2.6.1`, `riverpod_annotation:^2.6.1`).
+
+2. **`json_annotation` 4.12 vs `json_serializable` 호환 부재**
+   - 최신 `json_serializable` 6.13.x 는 `json_annotation ^4.11.0` 까지만 지원.
+   - **해결**: `flutter pub add json_annotation:^4.11.0` 으로 명시 핀.
+
+3. **버전 충돌 디버그 팁**
+   - `flutter pub deps` 로 의존성 트리 확인.
+   - 오류 마지막 줄의 "X is incompatible with Y" 가 단서.
+   - 한 패키지를 핀하면 연쇄적으로 풀리는 경우 많음.
+
 ---
 
 ## Step 3 — 폴더 구조 생성
@@ -64,6 +96,9 @@ mkdir -p lib/domain/{model,repository,usecase}
 mkdir -p lib/data/{repository_impl,remote,local}
 mkdir -p lib/presentation
 mkdir -p test/helpers
+
+# 빈 폴더도 git에 추적되도록 .gitkeep 추가
+find lib test -type d -empty -exec touch {}/.gitkeep \;
 ```
 
 **최종 구조:**
@@ -229,15 +264,28 @@ targets:
 
 `.gitignore` 에 추가:
 ```
+# Codegen
 *.g.dart
 *.freezed.dart
+
+# Claude 메모리 (로컬 전용)
+.claude/
 ```
+
+> `fvm use` 가 `.gitignore` 를 덮어쓰는 경우 있음. Flutter 표준 gitignore 항목이 누락됐는지 확인 (`.dart_tool/`, `/build/`, `.idea/` 등).
 
 ---
 
 ## Step 6 — CLAUDE.md 생성
 
-프로젝트 루트에 `CLAUDE.md` 생성. 아래 내용을 프로젝트에 맞게 채울 것:
+`.claude/CLAUDE.md` 에 생성 (루트 아님). `.gitignore` 에 `.claude/` 가 있어야 원격에 안 올라감.
+
+```bash
+mkdir -p .claude
+# 아래 템플릿을 .claude/CLAUDE.md 로 저장
+```
+
+아래 내용을 프로젝트에 맞게 채울 것:
 
 ```markdown
 # CLAUDE.md — <프로젝트명>
@@ -281,13 +329,68 @@ Clean Architecture. domain → data → presentation 단방향 의존.
 
 ---
 
-## Step 7 — 초기 빌드 확인
+## Step 7 — widget_test.dart 수정
+
+`flutter create` 가 만든 `test/widget_test.dart` 는 기본 `MyApp` 클래스 참조. `main.dart` 를 교체했으니 깨짐. 다음으로 교체:
+
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:<project_name>/main.dart';
+
+void main() {
+  testWidgets('App boots', (WidgetTester tester) async {
+    await tester.pumpWidget(const ProviderScope(child: App()));
+  });
+}
+```
+
+---
+
+## Step 8 — Git 초기화 + 커밋 템플릿 + 리모트
 
 ```bash
-dart run build_runner build --delete-conflicting-outputs
+git init
+# .gitmessage 파일을 회사 표준 양식으로 작성 (또는 다른 프로젝트에서 복사)
+git config commit.template .gitmessage
+
+# 리모트 등록 (예: GitHub, AWS CodeCommit, GitLab)
+git remote add origin <repo_url>
+
+# AWS CodeCommit HTTPS 사용 시
+git config credential.helper '!aws codecommit credential-helper $@'
+git config credential.UseHttpPath true
+```
+
+`.gitmessage` 표준 양식 (회사 컨벤션):
+
+```
+# <type>(<scope>): <subject>           # 50자 이내, 한글 OK
+#
+# [<영역 또는 파일명>]
+# - <변경 내용>
+#
+# types: feat | fix | chore | refactor | docs | test | perf | style
+# scope: 프로젝트 도메인 맞춰 정의
+#
+# 절대 금지 (자동 트레일러/AI 흔적):
+# - Co-Authored-By: Claude *
+# - 🤖 Generated with [Claude Code]
+# - Signed-off-by / Reviewed-by
+# - 본문 내 "AI" / "Claude" / "Generated" 표시
+```
+
+---
+
+## Step 9 — 초기 빌드 확인
+
+```bash
+dart run build_runner build           # fvm: fvm dart run build_runner build
 flutter analyze
 flutter run
 ```
+
+> `--delete-conflicting-outputs` 옵션은 build_runner 최신에서 제거됨 (warning만 출력).
 
 에러 없으면 완료. 이후 기능별로 `presentation/<feature>/` 폴더 추가하며 개발.
 
