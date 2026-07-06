@@ -224,6 +224,44 @@ test('apply 성공', () async {
 });
 ```
 
+## 폼 피처 트리플 패턴 (form / form_provider / submit_provider)
+
+폼 기반 피처(가입 단계, 등록 플로우 등)의 표준 3파일 구조. `lib/service/<feature>/` 아래:
+
+```dart
+// 1) <feature>_form.dart — 불변 폼 상태
+@immutable
+class PetForm {
+  const PetForm({this.name = '', this.breed = ''});
+  final String name;
+  final String breed;
+  PetForm copyWith({String? name, String? breed}) =>
+      PetForm(name: name ?? this.name, breed: breed ?? this.breed);
+}
+
+// 2) <feature>_form_provider.dart — setter마다 copyWith
+@riverpod
+class PetFormNotifier extends _$PetFormNotifier {
+  @override PetForm build() => const PetForm();
+  void setName(String v) => state = state.copyWith(name: v);
+  void setBreed(String v) => state = state.copyWith(breed: v);
+}
+
+// 3) <feature>_submit_provider.dart — AsyncValue 반환, API 호출
+@riverpod
+class PetSubmit extends _$PetSubmit {
+  @override AsyncValue<void> build() => const AsyncData(null);
+  Future<void> submit() async {
+    state = const AsyncLoading();
+    final form = ref.read(petFormNotifierProvider);
+    state = await AsyncValue.guard(
+        () => ref.read(petApiProvider).register(form.toReq()));
+  }
+}
+```
+
+폼 검증은 form_provider의 파생 getter로, 제출 상태 UI는 submit provider의 AsyncValue로 분리 — 한 provider에 섞지 말 것.
+
 ## 흔한 실수
 
 | 실수 | 결과 | 수정 |
